@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+</head>
+<body>
+    <script src="https://www.gstatic.com/firebasejs/5.2.0/firebase.js"></script>
+    <script>
+      // Initialize Firebase
+      var config = {
+        apiKey: "AIzaSyBqTlklsfHIxrElqrlUUeImusQ3i33SruA",
+        authDomain: "slackclone-9f113.firebaseapp.com",
+        databaseURL: "https://slackclone-9f113.firebaseio.com",
+        projectId: "slackclone-9f113",
+        storageBucket: "slackclone-9f113.appspot.com",
+        messagingSenderId: "514345056362"
+      };
+      firebase.initializeApp(config);
+
+      function writeUserData(userId, name, email, imageUrl) {
+        firebase.database().ref('users/' + userId).set({
+            username: name,
+            email: email,
+            profile_picture: imageUrl
+        });
+    }
+
+    function writeMessageData(userId, message, roomName) {
+        firebase.database().ref('/' + roomName + '/'+ userId +'/').set({
+            userId: userId,
+            message: message,
+            date: new Date()
+        });
+    }
+
+    function getDataByRoom(roomName) {
+        firebase.database().ref(roomName + '/').on('value', function(snapshot) {
+            console.log(snapshot.val());
+        });
+    }
+
+    getDataByRoom('general');
+    </script>    
+</body>
+</html>
