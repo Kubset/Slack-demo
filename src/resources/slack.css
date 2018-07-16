@@ -1,0 +1,27 @@
+/* #nickname {
+  border-style: solid;
+  border-color: red;
+}
+
+#message-context {
+  width: 100%;
+  height: 500px;
+  border-style: solid;
+  border-color: red;
+  margin-top: 10px;
+}
+
+#message {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  height: 100px;
+  width: 100%;
+} */
+
+nav {
+  margin-bottom: 10px;
+}
+
+#nickname {
+  margin-bottom: 10px;
+}
