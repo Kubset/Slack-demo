@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "slackclone-9f113",
+    "test": "slackclone-9f113"
+  }
+}
