@@ -15,221 +15,252 @@
  */
 'use strict';
 
+class Room {
+    constructor(room) {
+        this.room = room;
+    }
+
+    setRoom(room) {
+        document.getElementById('currentChannel').innerHTML = '# ' + room;
+        this.room = room;
+    }
+
+    getRoom() {
+      return this.room;
+    }
+}
+
+const room = new Room('general');
+
 // Signs-in Friendly Chat.
 function signIn() {
-  // Sign in Firebase using popup auth and Google as the identity provider.
-  var provider = new firebase.auth.GoogleAuthProvider();
-  firebase.auth().signInWithPopup(provider);
+    // Sign in Firebase using popup auth and Google as the identity provider.
+    var provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithPopup(provider);
 }
 
 // Signs-out of Friendly Chat.
 function signOut() {
-  // Sign out of Firebase.
-  firebase.auth().signOut();
+    // Sign out of Firebase.
+    firebase.auth().signOut();
 }
 
 // Initiate firebase auth.
 function initFirebaseAuth() {
-  // Listen to auth state changes.
-  firebase.auth().onAuthStateChanged(authStateObserver);
+    // Listen to auth state changes.
+    firebase.auth().onAuthStateChanged(authStateObserver);
 }
 
 // Returns the signed-in user's profile Pic URL.
 function getProfilePicUrl() {
-  return firebase.auth().currentUser.photoURL || '/images/profile_placeholder.png';
+    return firebase.auth().currentUser.photoURL || '/images/profile_placeholder.png';
 }
 
 // Returns the signed-in user's display name.
 function getUserName() {
-  return firebase.auth().currentUser.displayName;
+    return firebase.auth().currentUser.displayName;
 }
 
 // Returns true if a user is signed-in.
 function isUserSignedIn() {
-  return !!firebase.auth().currentUser;
+    return !!firebase.auth().currentUser;
 }
 
-// Loads chat messages history and listens for upcoming ones.
 function loadMessages() {
-  // Loads the last 12 messages and listen for new ones.
-  var callback = function(snap) {
-    var data = snap.val();
-    displayMessage(snap.key, data.name, data.text, data.profilePicUrl, data.imageUrl);
-  };
+    // TODO 7: Load and listens for new messages.
+    var messages = document.getElementById('messages');
+    messages.innerHTML = `<span id="message-filler"></span>`;
+    var callback = function(snap) {
+        var data = snap.val();
+        displayMessage(snap.key, data.name, data.text, data.profilePicUrl, data.imageUrl, data.timestamp);
+    };
 
-  firebase.database().ref('/messages/general').limitToLast(12).on('child_added', callback);
-  firebase.database().ref('/messages/general').limitToLast(12).on('child_changed', callback);
+    firebase.database().ref('/messages/' + room.getRoom() + '').limitToLast(30).on('child_added', callback);
+    firebase.database().ref('/messages/' + room.getRoom() + '').limitToLast(30).on('child_changed', callback);
 }
 
 // Saves a new message on the Firebase DB.
 function saveMessage(messageText) {
-  // Add a new message entry to the Firebase database.
-  return firebase.database().ref('/messages/general').push({
-    name: getUserName(),
-    text: messageText,
-    profilePicUrl: getProfilePicUrl()
-  }).catch(function(error) {
-    console.error('Error writing new message to Firebase Database', error);
-  });
+    // TODO 8: Push a new message to Firebase.
+    return firebase.database().ref('/messages/' + room.getRoom() + '').push({
+        name: getUserName(),
+        text: messageText,
+        timestamp: moment(new Date()).unix(),
+        profilePicUrl: getProfilePicUrl()
+    }).catch(function(error) {
+        console.error('Error writing new message to Firebase Database', error);
+    });
 }
 
 // Saves a new message containing an image in Firebase.
 // This first saves the image in Firebase storage.
 function saveImageMessage(file) {
-  // 1 - We add a message with a loading icon that will get updated with the shared image.
-  firebase.database().ref('/messages/').push({
-    name: getUserName(),
-    imageUrl: LOADING_IMAGE_URL,
-    profilePicUrl: getProfilePicUrl()
-  }).then(function(messageRef) {
-    // 2 - Upload the image to Cloud Storage.
-    var filePath = firebase.auth().currentUser.uid + '/' + messageRef.key + '/' + file.name;
-    return firebase.storage().ref(filePath).put(file).then(function(fileSnapshot) {
-      // 3 - Generate a public URL for the file.
-      return fileSnapshot.ref.getDownloadURL().then((url) => {
-        // 4 - Update the chat message placeholder with the image’s URL.
-        return messageRef.update({
-          imageUrl: url,
-          storageUri: fileSnapshot.metadata.fullPath
+    // TODO 9: Posts a new image as a message.
+    firebase.database().ref('/messages/' + room.getRoom() + '').push({
+        name: getUserName(),
+        imageUrl: LOADING_IMAGE_URL,
+        profilePicUrl: getProfilePicUrl()
+    }).then(function(messageRef) {
+        // 2 - Upload the image to Cloud Storage.
+        var filePath = firebase.auth().currentUser.uid + '/' + messageRef.key + '/' + file.name;
+        return firebase.storage().ref(filePath).put(file).then(function(fileSnapshot) {
+            // 3 - Generate a public URL for the file.
+            return fileSnapshot.ref.getDownloadURL().then((url) => {
+                // 4 - Update the chat message placeholder with the image's URL.
+                return messageRef.update({
+                    imageUrl: url,
+                    storageUri: fileSnapshot.metadata.fullPath
+                });
+            });
         });
-      });
+    }).catch(function(error) {
+        console.error('There was an error uploading a file to Cloud Storage:', error);
     });
-  }).catch(function(error) {
-    console.error('There was an error uploading a file to Cloud Storage:', error);
-  });
 }
 
 // Saves the messaging device token to the datastore.
 function saveMessagingDeviceToken() {
-  firebase.messaging().getToken().then(function(currentToken) {
-    if (currentToken) {
-      console.log('Got FCM device token:', currentToken);
-      // Saving the Device Token to the datastore.
-      firebase.database().ref('/fcmTokens').child(currentToken)
-          .set(firebase.auth().currentUser.uid);
-    } else {
-      // Need to request permissions to show notifications.
-      requestNotificationsPermissions();
-    }
-  }).catch(function(error){
-    console.error('Unable to get messaging token.', error);
-  });
+    firebase.messaging().getToken().then(function(currentToken) {
+        if (currentToken) {
+            console.log('Got FCM device token:', currentToken);
+            // Saving the Device Token to the datastore.
+            firebase.database().ref('/fcmTokens').child(currentToken)
+                .set(firebase.auth().currentUser.uid);
+        } else {
+            // Need to request permissions to show notifications.
+            requestNotificationsPermissions();
+        }
+    }).catch(function(error) {
+        console.error('Unable to get messaging token.', error);
+    });
 }
 
 // Requests permissions to show notifications.
 function requestNotificationsPermissions() {
-  console.log('Requesting notifications permission...');
-  firebase.messaging().requestPermission().then(function() {
-    // Notification permission granted.
-    saveMessagingDeviceToken();
-  }).catch(function(error) {
-    console.error('Unable to get permission to notify.', error);
-  });
+    console.log('Requesting notifications permission...');
+    firebase.messaging().requestPermission().then(function() {
+        // Notification permission granted.
+        saveMessagingDeviceToken();
+    }).catch(function(error) {
+        console.error('Unable to get permission to notify.', error);
+    });
 }
 
 // Triggered when a file is selected via the media picker.
 function onMediaFileSelected(event) {
-  event.preventDefault();
-  var file = event.target.files[0];
+    event.preventDefault();
+    var file = event.target.files[0];
 
-  // Clear the selection in the file picker input.
-  imageFormElement.reset();
+    // Clear the selection in the file picker input.
+    imageFormElement.reset();
 
-  // Check if the file is an image.
-  if (!file.type.match('image.*')) {
-    var data = {
-      message: 'You can only share images',
-      timeout: 2000
-    };
-    M.toast({html: data});
-    // signInSnackbarElement.MaterialSnackbar.showSnackbar(data);
-    return;
-  }
-  // Check if the user is signed-in
-  if (checkSignedInWithMessage()) {
-    saveImageMessage(file);
-  }
+    // Check if the file is an image.
+    if (!file.type.match('image.*')) {
+        var data = {
+            message: 'You can only share images',
+            timeout: 2000
+        };
+        M.toast({ html: data });
+        // signInSnackbarElement.MaterialSnackbar.showSnackbar(data);
+        return;
+    }
+    // Check if the user is signed-in
+    if (checkSignedInWithMessage()) {
+        saveImageMessage(file);
+    }
 }
 
 // Triggered when the send new message form is submitted.
 function onMessageFormSubmit(e) {
-  e.preventDefault();
-  // Check that the user entered a message and is signed in.
-  if (messageInputElement.value && checkSignedInWithMessage()) {
-    saveMessage(messageInputElement.value).then(function() {
-      // Clear message text field and re-enable the SEND button.
-      // resetMaterialTextfield(messageInputElement);
-      messageInputElement.value = "";
-      window.scrollTo(0,document.body.scrollHeight);
-      toggleButton();
-    });
-  }
+    e.preventDefault();
+    // Check that the user entered a message and is signed in.
+    if (messageInputElement.value && checkSignedInWithMessage()) {
+        saveMessage(messageInputElement.value).then(function() {
+            // Clear message text field and re-enable the SEND button.
+            // resetMaterialTextfield(messageInputElement);
+            messageInputElement.value = "";
+            window.scrollTo(0, document.body.scrollHeight);
+            toggleButton();
+        });
+    }
 }
 
 // Triggers when the auth state change for instance when the user signs-in or signs-out.
 function authStateObserver(user) {
-  if (user) { // User is signed in!
-    // Get the signed-in user's profile pic and name.
-    var profilePicUrl = getProfilePicUrl();
-    var userName = getUserName();
+    if (user) { // User is signed in!
+        // Get the signed-in user's profile pic and name.
+        var profilePicUrl = getProfilePicUrl();
+        var userName = getUserName();
 
-    // Set the user's profile pic and name.
-    userPicElement.style.backgroundImage = 'url(' + profilePicUrl + ')';
-    userNameElement.textContent = userName;
+        // Set the user's profile pic and name.
+        userPicElement.style.backgroundImage = 'url(' + profilePicUrl + ')';
+        userNameElement.textContent = userName;
 
-    // Show user's profile and sign-out button.
-    userNameElement.classList.remove('hidden');
-    userPicElement.classList.remove('hidden');
-    signOutButtonElement.classList.remove('hidden');
+        // Show user's profile and sign-out button.
+        userNameElement.classList.remove('hidden');
+        userPicElement.classList.remove('hidden');
+        signOutButtonElement.classList.remove('hidden');
 
-    // Hide sign-in button.
-    signInButtonElement.classList.add('hidden');
+        // Hide sign-in button.
+        signInButtonElement.classList.add('hidden');
 
-    // We save the Firebase Messaging Device token and enable notifications.
-    saveMessagingDeviceToken();
-  } else { // User is signed out!
-    // Hide user's profile and sign-out button.
-    userNameElement.classList.add('hidden');
-    userPicElement.classList.add('hidden');
-    signOutButtonElement.classList.add('hidden');
+        // We save the Firebase Messaging Device token and enable notifications.
+        saveMessagingDeviceToken();
+    } else { // User is signed out!
+        // Hide user's profile and sign-out button.
+        userNameElement.classList.add('hidden');
+        userPicElement.classList.add('hidden');
+        signOutButtonElement.classList.add('hidden');
 
-    // Show sign-in button.
-    signInButtonElement.classList.remove('hidden');
-  }
+        // Show sign-in button.
+        signInButtonElement.classList.remove('hidden');
+    }
 }
 
 // Returns true if user is signed-in. Otherwise false and displays a message.
 function checkSignedInWithMessage() {
-  // Return true if the user is signed in Firebase
-  if (isUserSignedIn()) {
-    return true;
-  }
+    // Return true if the user is signed in Firebase
+    if (isUserSignedIn()) {
+        return true;
+    }
 
-  // Display a message to the user using a Toast.
-  var data = {
-    message: 'You must sign-in first',
-    timeout: 2000
-  };
+    // Display a message to the user using a Toast.
+    var data = {
+        message: 'You must sign-in first',
+        timeout: 2000
+    };
 
-  // signInSnackbarElement.MaterialSnackbar.showSnackbar(data);
-  M.toast({html: data.message});
-  return false;
+    // signInSnackbarElement.MaterialSnackbar.showSnackbar(data);
+    M.toast({ html: data.message });
+    return false;
 }
 
 // Resets the given MaterialTextField.
 function resetMaterialTextfield(element) {
-  element.value = '';
-  element.parentNode.MaterialTextfield.boundUpdateClassesHandler();
+    element.value = '';
+    element.parentNode.MaterialTextfield.boundUpdateClassesHandler();
 }
 
 // // Template for messages.
-var MESSAGE_TEMPLATE =
-    '<div class="message-container">' +
-      '<div class="spacing"><div class="pic"></div></div>' +
-      '<div class="message"></div>' +
-      '<div class="name"></div>' +
-    '</div>';
+// var MESSAGE_TEMPLATE =
+//     '<div class="message-container">' +
+//     '<div class="spacing"><div class="pic"></div></div>' +
+//     '<div class="message"></div>' +
+//     '<div style="display: block;"><div class="name"></div><div class="timestamp"></div></div>' +
+//     '</div>';
 
+var MESSAGE_TEMPLATE = `<div class="flex flex-row message-container">
+                    <div class="mr-5 avatar"><img class="pic" src="" alt="avatar"></div>
+                    <div class="flex flex-column">
+                        <div class="flex flex-row">
+                            <div class="signature mr-5"><span class="name"></span></div>
+                            <div class="signature date"><span class="timestamp"></span></div>
+                        </div>
+                        <div>
+                            <p class="message"><span class="message"></span></p>
+                        </div>
+                    </div>
+                </div>`;
 // var MESSAGE_TEMPLATE = `<li class="mdl-list__item mdl-list__item--three-line message-container">
 //     <span class="mdl-list__item-primary-content">
 //       <div class="pic"></div>
@@ -244,57 +275,61 @@ var MESSAGE_TEMPLATE =
 var LOADING_IMAGE_URL = 'https://www.google.com/images/spin-32.gif?a';
 
 // Displays a Message in the UI.
-function displayMessage(key, name, text, picUrl, imageUrl) {
-  var div = document.getElementById(key);
-  // If an element for that message does not exists yet we create it.
-  if (!div) {
-    var container = document.createElement('div');
-    container.innerHTML = MESSAGE_TEMPLATE;
-    div = container.firstChild;
-    div.setAttribute('id', key);
-    messageListElement.appendChild(div);
-  }
-  if (picUrl) {
-    div.querySelector('.pic').style.backgroundImage = 'url(' + picUrl + ')';
-  }
-  div.querySelector('.name').textContent = name;
-  var messageElement = div.querySelector('.message');
-  if (text) { // If the message is text.
-    messageElement.textContent = text;
-    // Replace all line breaks by <br>.
-    messageElement.innerHTML = messageElement.innerHTML.replace(/\n/g, '<br>');
-  } else if (imageUrl) { // If the message is an image.
-    var image = document.createElement('img');
-    image.addEventListener('load', function() {
-      messageListElement.scrollTop = messageListElement.scrollHeight;
-    });
-    image.src = imageUrl + '&' + new Date().getTime();
-    messageElement.innerHTML = '';
-    messageElement.appendChild(image);
-  }
-  // Show the card fading-in and scroll to view the new message.
-  setTimeout(function() {div.classList.add('visible')}, 1);
-  messageListElement.scrollTop = messageListElement.scrollHeight;
-  messageInputElement.focus();
+function displayMessage(key, name, text, picUrl, imageUrl, timestamp) {
+    var div = document.getElementById(key);
+    // If an element for that message does not exists yet we create it.
+    if (!div) {
+        var container = document.createElement('div');
+        container.innerHTML = MESSAGE_TEMPLATE;
+        div = container.firstChild;
+        div.setAttribute('id', key);
+        messageListElement.appendChild(div);
+    }
+    if (picUrl) {
+        div.querySelector('.pic').src = picUrl;
+    }
+    if (timestamp) {
+        var readableDate = moment.unix(timestamp).format('YYYY-MM-DD HH:mm:ss');
+        div.querySelector('.timestamp').textContent = readableDate;
+    }
+    div.querySelector('.name').textContent = name;
+    var messageElement = div.querySelector('.message');
+    if (text) { // If the message is text.
+        messageElement.textContent = text;
+        // Replace all line breaks by <br>.
+        messageElement.innerHTML = messageElement.innerHTML.replace(/\n/g, '<br>');
+    } else if (imageUrl) { // If the message is an image.
+        var image = document.createElement('img');
+        image.addEventListener('load', function() {
+            messageListElement.scrollTop = messageListElement.scrollHeight;
+        });
+        image.src = imageUrl + '&' + new Date().getTime();
+        messageElement.innerHTML = '';
+        messageElement.appendChild(image);
+    }
+    // Show the card fading-in and scroll to view the new message.
+    setTimeout(function() { div.classList.add('visible') }, 1);
+    messageListElement.scrollTop = messageListElement.scrollHeight;
+    messageInputElement.focus();
 }
 
 // Enables or disables the submit button depending on the values of the input
 // fields.
 function toggleButton() {
-  if (messageInputElement.value) {
-    submitButtonElement.removeAttribute('disabled');
-  } else {
-    submitButtonElement.setAttribute('disabled', 'true');
-  }
+    if (messageInputElement.value) {
+        submitButtonElement.removeAttribute('disabled');
+    } else {
+        submitButtonElement.setAttribute('disabled', 'true');
+    }
 }
 
 // Checks that the Firebase SDK has been correctly setup and configured.
 function checkSetup() {
-  if (!window.firebase || !(firebase.app instanceof Function) || !firebase.app().options) {
-    window.alert('You have not configured and imported the Firebase SDK. ' +
-        'Make sure you go through the codelab setup instructions and make ' +
-        'sure you are running the codelab using `firebase serve`');
-  }
+    if (!window.firebase || !(firebase.app instanceof Function) || !firebase.app().options) {
+        window.alert('You have not configured and imported the Firebase SDK. ' +
+            'Make sure you go through the codelab setup instructions and make ' +
+            'sure you are running the codelab using `firebase serve`');
+    }
 }
 
 // Checks that Firebase has been imported.
@@ -325,8 +360,8 @@ messageInputElement.addEventListener('change', toggleButton);
 
 // Events for image upload.
 imageButtonElement.addEventListener('click', function(e) {
-  e.preventDefault();
-  mediaCaptureElement.click();
+    e.preventDefault();
+    mediaCaptureElement.click();
 });
 mediaCaptureElement.addEventListener('change', onMediaFileSelected);
 
