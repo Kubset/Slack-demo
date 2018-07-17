@@ -15,10 +15,9 @@
  */
 'use strict';
 
-function changeRoom() {
+function getRoom() {
   var e = document.getElementById("select-room");
   var strUser = e.options[e.selectedIndex].text;
-  console.log(strUser);
   return strUser;
 }
 
@@ -62,19 +61,21 @@ function isUserSignedIn() {
 // Loads chat messages history and listens for upcoming ones.
 function loadMessages() {
   // TODO 7: Load and listens for new messages.
+  var messages = document.getElementById('messages');
+  messages.innerHTML = `<span id="message-filler"></span>`;
   var callback = function(snap) {
     var data = snap.val();
     displayMessage(snap.key, data.name, data.text, data.profilePicUrl, data.imageUrl);
   };
 
-  firebase.database().ref('/messages/'+ changeRoom() +'').limitToLast(12).on('child_added', callback);
-  firebase.database().ref('/messages/'+ changeRoom() +'').limitToLast(12).on('child_changed', callback);
+  firebase.database().ref('/messages/'+ getRoom() +'').limitToLast(12).on('child_added', callback);
+  firebase.database().ref('/messages/'+ getRoom() +'').limitToLast(12).on('child_changed', callback);
 }
 
 // Saves a new message on the Firebase DB.
 function saveMessage(messageText) {
   // TODO 8: Push a new message to Firebase.
-  return firebase.database().ref('/messages/'+ changeRoom() +'').push({
+  return firebase.database().ref('/messages/'+ getRoom() +'').push({
     name: getUserName(),
     text: messageText,
     profilePicUrl: getProfilePicUrl()
@@ -87,7 +88,7 @@ function saveMessage(messageText) {
 // This first saves the image in Firebase storage.
 function saveImageMessage(file) {
   // TODO 9: Posts a new image as a message.
-  firebase.database().ref('/messages/'+ changeRoom() +'').push({
+  firebase.database().ref('/messages/'+ getRoom() +'').push({
     name: getUserName(),
     imageUrl: LOADING_IMAGE_URL,
     profilePicUrl: getProfilePicUrl()
@@ -224,13 +225,19 @@ var LOADING_IMAGE_URL = 'https://www.google.com/images/spin-32.gif?a';
 function displayMessage(key, name, text, picUrl, imageUrl) {
   var div = document.getElementById(key);
 
+  //console.log(document.getElementsByClassName('message-container visible'));
+  //var data = firebase.database().ref('/messages/'+ getRoom() +'').key;
+  //console.log(data.length);
+  // for (let i = 0; i < data.length; i++) {
+  //
+  // }
   // If an element for that message does not exists yet we create it.
   if (!div) {
     var container = document.createElement('div');
     container.innerHTML = MESSAGE_TEMPLATE;
     div = container.firstChild;
     div.setAttribute('id', key);
-    console.log(div);
+    //console.log(div);
     messageListElement.appendChild(div);
   }
   if (picUrl) {
