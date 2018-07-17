@@ -141,7 +141,8 @@ function onMediaFileSelected(event) {
       message: 'You can only share images',
       timeout: 2000
     };
-    signInSnackbarElement.MaterialSnackbar.showSnackbar(data);
+    M.toast({html: data});
+    // signInSnackbarElement.MaterialSnackbar.showSnackbar(data);
     return;
   }
   // Check if the user is signed-in
@@ -157,7 +158,9 @@ function onMessageFormSubmit(e) {
   if (messageInputElement.value && checkSignedInWithMessage()) {
     saveMessage(messageInputElement.value).then(function() {
       // Clear message text field and re-enable the SEND button.
-      resetMaterialTextfield(messageInputElement);
+      // resetMaterialTextfield(messageInputElement);
+      messageInputElement.value = "";
+      window.scrollTo(0,document.body.scrollHeight);
       toggleButton();
     });
   }
@@ -175,23 +178,23 @@ function authStateObserver(user) {
     userNameElement.textContent = userName;
 
     // Show user's profile and sign-out button.
-    userNameElement.removeAttribute('hidden');
-    userPicElement.removeAttribute('hidden');
-    signOutButtonElement.removeAttribute('hidden');
+    userNameElement.classList.remove('hidden');
+    userPicElement.classList.remove('hidden');
+    signOutButtonElement.classList.remove('hidden');
 
     // Hide sign-in button.
-    signInButtonElement.setAttribute('hidden', 'true');
+    signInButtonElement.classList.add('hidden');
 
     // We save the Firebase Messaging Device token and enable notifications.
     saveMessagingDeviceToken();
   } else { // User is signed out!
     // Hide user's profile and sign-out button.
-    userNameElement.setAttribute('hidden', 'true');
-    userPicElement.setAttribute('hidden', 'true');
-    signOutButtonElement.setAttribute('hidden', 'true');
+    userNameElement.classList.add('hidden');
+    userPicElement.classList.add('hidden');
+    signOutButtonElement.classList.add('hidden');
 
     // Show sign-in button.
-    signInButtonElement.removeAttribute('hidden');
+    signInButtonElement.classList.remove('hidden');
   }
 }
 
@@ -207,7 +210,9 @@ function checkSignedInWithMessage() {
     message: 'You must sign-in first',
     timeout: 2000
   };
-  signInSnackbarElement.MaterialSnackbar.showSnackbar(data);
+
+  // signInSnackbarElement.MaterialSnackbar.showSnackbar(data);
+  M.toast({html: data.message});
   return false;
 }
 
