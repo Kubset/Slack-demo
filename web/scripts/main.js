@@ -18,6 +18,7 @@
 class Room {
     constructor(room) {
         this.room = room;
+        document.getElementById('currentChannel').innerHTML = '# ' + room;
     }
 
     setRoom(room) {
@@ -26,7 +27,7 @@ class Room {
     }
 
     getRoom() {
-      return this.room;
+        return this.room;
     }
 }
 
@@ -58,7 +59,7 @@ function getProfilePicUrl() {
 
 // Returns the signed-in user's display name.
 function getUserName() {
-    return firebase.auth().currentUser.displayName;
+    return firebase.auth().currentUser;
 }
 
 // Returns true if a user is signed-in.
@@ -79,16 +80,27 @@ function loadMessages() {
     firebase.database().ref('/messages/' + room.getRoom() + '').limitToLast(30).on('child_changed', callback);
 }
 
+function loadUsers() {
+    var users = document.getElementById('users');
+    // users.innerHTML = `<span id="message-filler"></span>`;
+    var callback = function(snap) {
+        var data = snap.val();
+        displayUser(data.name, data.profilePicUrl, data.online);
+    };
+    firebase.database().ref('/users/').on('child_changed', callback);
+    firebase.database().ref('/users/').on('child_added', callback);
+}
+
 // Saves a new message on the Firebase DB.
 function saveMessage(messageText) {
     // TODO 8: Push a new message to Firebase.
     return firebase.database().ref('/messages/' + room.getRoom() + '').push({
-        name: getUserName(),
+        name: getUserName().displayName,
         text: messageText,
         timestamp: moment(new Date()).unix(),
         profilePicUrl: getProfilePicUrl()
     }).catch(function(error) {
-        console.error('Error writing new message to Firebase Database', error);
+        // console.error('Error writing new message to Firebase Database', error);
     });
 }
 
@@ -97,7 +109,7 @@ function saveMessage(messageText) {
 function saveImageMessage(file) {
     // TODO 9: Posts a new image as a message.
     firebase.database().ref('/messages/' + room.getRoom() + '').push({
-        name: getUserName(),
+        name: getUserName().displayName,
         imageUrl: LOADING_IMAGE_URL,
         profilePicUrl: getProfilePicUrl()
     }).then(function(messageRef) {
@@ -114,7 +126,7 @@ function saveImageMessage(file) {
             });
         });
     }).catch(function(error) {
-        console.error('There was an error uploading a file to Cloud Storage:', error);
+        // console.error('There was an error uploading a file to Cloud Storage:', error);
     });
 }
 
@@ -122,7 +134,7 @@ function saveImageMessage(file) {
 function saveMessagingDeviceToken() {
     firebase.messaging().getToken().then(function(currentToken) {
         if (currentToken) {
-            console.log('Got FCM device token:', currentToken);
+            // console.log('Got FCM device token:', currentToken);
             // Saving the Device Token to the datastore.
             firebase.database().ref('/fcmTokens').child(currentToken)
                 .set(firebase.auth().currentUser.uid);
@@ -131,7 +143,38 @@ function saveMessagingDeviceToken() {
             requestNotificationsPermissions();
         }
     }).catch(function(error) {
-        console.error('Unable to get messaging token.', error);
+        // console.error('Unable to get messaging token.', error);
+    });
+}
+
+function listenOnlineUsers() {
+    var user = getUserName().uid;
+    var presenceRef = firebase.database().ref('/users/' + user).onDisconnect().update({
+        online: false
+    });
+}
+
+function saveUserToDb() {
+
+    var user = firebase.auth().currentUser;
+    var userRef = firebase.database().ref('/users/' + user.uid + '/');
+    userRef.transaction(function(currentData) {
+        if (currentData === null) {
+            return { name: user.displayName, profilePicUrl: getProfilePicUrl(), online: true };
+        } else {
+            return { name: user.displayName, profilePicUrl: getProfilePicUrl(), online: true };
+            // console.log('User already exists.');
+            return; // Abort the transaction.
+        }
+    }, function(error, committed, snapshot) {
+        if (error) {
+            // console.log('Transaction failed abnormally!', error);
+        } else if (!committed) {
+            // console.log('We aborted the transaction (because user already exists).');
+        } else {
+            // console.log('User added!');
+        }
+        // console.log("User's data: ", snapshot.val());
     });
 }
 
@@ -190,7 +233,7 @@ function authStateObserver(user) {
     if (user) { // User is signed in!
         // Get the signed-in user's profile pic and name.
         var profilePicUrl = getProfilePicUrl();
-        var userName = getUserName();
+        var userName = getUserName().displayName;
 
         // Set the user's profile pic and name.
         userPicElement.style.backgroundImage = 'url(' + profilePicUrl + ')';
@@ -206,6 +249,7 @@ function authStateObserver(user) {
 
         // We save the Firebase Messaging Device token and enable notifications.
         saveMessagingDeviceToken();
+        saveUserToDb();
     } else { // User is signed out!
         // Hide user's profile and sign-out button.
         userNameElement.classList.add('hidden');
@@ -235,20 +279,6 @@ function checkSignedInWithMessage() {
     return false;
 }
 
-// Resets the given MaterialTextField.
-function resetMaterialTextfield(element) {
-    element.value = '';
-    element.parentNode.MaterialTextfield.boundUpdateClassesHandler();
-}
-
-// // Template for messages.
-// var MESSAGE_TEMPLATE =
-//     '<div class="message-container">' +
-//     '<div class="spacing"><div class="pic"></div></div>' +
-//     '<div class="message"></div>' +
-//     '<div style="display: block;"><div class="name"></div><div class="timestamp"></div></div>' +
-//     '</div>';
-
 var MESSAGE_TEMPLATE = `<div class="flex flex-row message-container">
                     <div class="mr-5 avatar"><img class="pic" src="" alt="avatar"></div>
                     <div class="flex flex-column">
@@ -261,15 +291,6 @@ var MESSAGE_TEMPLATE = `<div class="flex flex-row message-container">
                         </div>
                     </div>
                 </div>`;
-// var MESSAGE_TEMPLATE = `<li class="mdl-list__item mdl-list__item--three-line message-container">
-//     <span class="mdl-list__item-primary-content">
-//       <div class="pic"></div>
-//       <span class="name"></span>
-//       <span class="mdl-list__item-text-body message">
-//       </span>
-//     </span>
-//   </li>`;
-
 
 // A loading image URL.
 var LOADING_IMAGE_URL = 'https://www.google.com/images/spin-32.gif?a';
@@ -313,6 +334,35 @@ function displayMessage(key, name, text, picUrl, imageUrl, timestamp) {
     messageInputElement.focus();
 }
 
+var USER_TEMPLATE = `<img src="" alt="" class="pic avatar">
+                        <span class="title"></span>
+                        <span id="online"></span>`;
+
+// Displays a User in the UI.
+function displayUser(name, picUrl, online) {
+    console.log(name, picUrl, online);
+    var div = document.getElementById('users');
+    var container = document.createElement('li');
+    container.classList.add('collection-item');
+    container.innerHTML = USER_TEMPLATE;
+    // container.setAttribute('id', name);
+    userListElement.appendChild(container);
+    if (name) {
+        div.querySelector('.title').innerHTML = name;
+    }
+    if (picUrl) {
+        div.querySelector('.pic').src = picUrl;
+    }
+    if (online == true) {
+        div.querySelector('#online').innerHTML = `<span class="badge">Online</span>`;
+    } else if (online == false) {
+        div.querySelector('#online').innerHTML = `<span class="red badge">Offline</span>`;
+    } else {
+        div.querySelector('#online').innerHTML = `<span class="red badge">Offline</span>`;
+    }
+    setTimeout(function() { div.classList.add('visible') }, 1);
+}
+
 // Enables or disables the submit button depending on the values of the input
 // fields.
 function toggleButton() {
@@ -336,6 +386,7 @@ function checkSetup() {
 checkSetup();
 
 // Shortcuts to DOM Elements.
+var userListElement = document.getElementById('users');
 var messageListElement = document.getElementById('messages');
 var messageFormElement = document.getElementById('message-form');
 var messageInputElement = document.getElementById('message');
@@ -368,5 +419,11 @@ mediaCaptureElement.addEventListener('change', onMediaFileSelected);
 // initialize Firebase
 initFirebaseAuth();
 
-// We load currently existing chat messages and listen to new ones.
 loadMessages();
+
+setTimeout(() => {
+    listenOnlineUsers();
+}, 1000);
+setTimeout(() => {
+    loadUsers();
+}, 1000);
