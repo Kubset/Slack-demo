@@ -321,12 +321,21 @@ function displayMessage(key, name, text, picUrl, imageUrl, timestamp) {
         messageElement.innerHTML = messageElement.innerHTML.replace(/\n/g, '<br>');
     } else if (imageUrl) { // If the message is an image.
         var image = document.createElement('img');
+
+        var link = document.createElement('a');
+
+        image.src = 
         image.addEventListener('load', function() {
             messageListElement.scrollTop = messageListElement.scrollHeight;
         });
-        image.src = imageUrl + '&' + new Date().getTime();
+        var photoURL = imageUrl + '&' + new Date().getTime();
+        image.src = photoURL;
+        link.href = photoURL;
+        link.target = '_blank';
         messageElement.innerHTML = '';
-        messageElement.appendChild(image);
+        link.appendChild(image);
+        messageElement.appendChild(link);
+
     }
     // Show the card fading-in and scroll to view the new message.
     setTimeout(function() { div.classList.add('visible') }, 1);
